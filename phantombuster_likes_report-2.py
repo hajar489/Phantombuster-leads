@@ -50,8 +50,16 @@ df_new_grouped["Posts Url"] = df_new_grouped["Posts Url"].apply(lambda x: list(s
 df_new_grouped["Aantal likes nieuw"] = df_new_grouped["Posts Url"].apply(len)
 
 # === 5. Laad vorige maand (indien aanwezig) ===
-old_file = os.path.join(input_dir, "Historisch_Likes_Dataset__Vorige_Maand_ (1).csv")
-if os.path.exists(old_file):
+import glob
+
+# Zoek alle outputbestanden met de juiste naamstructuur
+output_files = glob.glob(os.path.join(output_dir, "likes_per_profiel_*.csv"))
+
+# Sorteer ze op datum (alfabetisch werkt hier omdat YYYY-MM-DD formaat is)
+output_files.sort()
+
+if output_files:
+    old_file = output_files[-1]  # laatst gegenereerd
     df_old = pd.read_csv(old_file)
     df_old.rename(columns={
         "profileLink": "Profile Link",
@@ -64,6 +72,7 @@ if os.path.exists(old_file):
 else:
     df_old = pd.DataFrame(columns=df_new_grouped.columns.tolist() + ["Aantal likes totaal"])
     df_old["Posts Url"] = df_old["Posts Url"].astype(object)
+
 
 # === 6. Merge met vorige maand ===
 df_merged = pd.merge(df_old, df_new_grouped, on="Profile Link", how="outer", suffixes=("_oud", "_nieuw"))
