@@ -1,26 +1,43 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[51]:
+# In[75]:
 
 
 import pandas as pd
 import os
+from datetime import datetime
 
-# Zorg dat de output map bestaat
-os.makedirs("Phantombuster_leads", exist_ok=True)
+# Padinstellingen
+base_dir = "/Users/hajartalhaoui/Downloads/Phantombuster_leads"
+input_dir = os.path.join(base_dir, "datasets")
+output_dir = os.path.join(base_dir, "output")
+os.makedirs(output_dir, exist_ok=True)
 
 def extract_post_links(posts_url):
     if pd.isna(posts_url):
         return []
     return [link.strip() for link in posts_url.split('|') if link.strip()]
 
+def load_csv(filename):
+    return pd.read_csv(os.path.join(input_dir, filename))
+
 # 1. Laad de nieuwe maanddata
-df1 = pd.read_csv("datasets/Phantombuster_Dataset_1.csv")
-df2 = pd.read_csv("datasets/Phantombuster_Dataset_2.csv")
-df3 = pd.read_csv("datasets/Phantombuster_Dataset_3.csv")
-df4 = pd.read_csv("datasets/Phantombuster_Dataset_4.csv")
+df1 = load_csv("Phantombuster_Dataset_1.csv")
+df2 = load_csv("Phantombuster_Dataset_2.csv")
+df3 = load_csv("Phantombuster_Dataset_3.csv")
+df4 = load_csv("Phantombuster_Dataset_4.csv")
 df_new = pd.concat([df1, df2, df3, df4], ignore_index=True)
+
+# Hernoem kolommen naar uniforme standaard
+df_new.rename(columns={
+    "profileLink": "Profile Link",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "fullName": "Full Name",
+    "postsUrl": "Posts Url"
+}, inplace=True)
+
 df_new["Posts Url"] = df_new["Posts Url"].apply(extract_post_links)
 
 # 2. Groepeer nieuwe data per profiel
@@ -35,9 +52,17 @@ df_new_grouped["Posts Url"] = df_new_grouped["Posts Url"].apply(lambda x: list(s
 df_new_grouped["Aantal likes nieuw"] = df_new_grouped["Posts Url"].apply(len)
 
 # 3. Laad de vorige maand (indien beschikbaar)
-if os.path.exists("Historisch_Likes_Dataset__Vorige_Maand_ (1).csv"):
-    df_old = pd.read_csv("Historisch_Likes_Dataset__Vorige_Maand_ (1).csv")
-    df_old["Posts Url"] = df_old["Posts Url"].apply(lambda x: extract_post_links(x))
+old_file = os.path.join(input_dir, "Historisch_Likes_Dataset__Vorige_Maand_ (1).csv")
+if os.path.exists(old_file):
+    df_old = pd.read_csv(old_file)
+    df_old.rename(columns={
+        "profileLink": "Profile Link",
+        "firstName": "First Name",
+        "lastName": "Last Name",
+        "fullName": "Full Name",
+        "postsUrl": "Posts Url"
+    }, inplace=True)
+    df_old["Posts Url"] = df_old["Posts Url"].apply(extract_post_links)
 else:
     df_old = pd.DataFrame(columns=df_new_grouped.columns.tolist() + ["Aantal likes totaal"])
     df_old["Posts Url"] = df_old["Posts Url"].astype(object)
@@ -60,21 +85,17 @@ df_merged["Aantal likes totaal"] = df_merged["Alle posts cumulatief"].apply(lamb
 
 # 5. Output formatteren
 output = pd.DataFrame({
-    "Profile Link": df_merged["Profile Link"],
-    "Full Name": df_merged["Full Name_nieuw"].combine_first(df_merged["Full Name_oud"]),
-    "First Name": df_merged["First Name_nieuw"].combine_first(df_merged["First Name_oud"]),
-    "Last Name": df_merged["Last Name_nieuw"].combine_first(df_merged["Last Name_oud"]),
-    "Posts Url": df_merged["Alle posts cumulatief"].apply(lambda x: " | ".join(x)),
+    "profileLink": df_merged["Profile Link"],
+    "fullName": df_merged["Full Name_nieuw"].combine_first(df_merged["Full Name_oud"]),
+    "firstName": df_merged["First Name_nieuw"].combine_first(df_merged["First Name_oud"]),
+    "lastName": df_merged["Last Name_nieuw"].combine_first(df_merged["Last Name_oud"]),
+    "postsUrl": df_merged["Alle posts cumulatief"].apply(lambda x: " | ".join(x)),
     "Aantal likes totaal": df_merged["Aantal likes totaal"]
 })
 
-from datetime import datetime
-
-# Genereer de datum als string
+# 6. Opslaan
 vandaag = datetime.today().strftime("%Y-%m-%d")
-
-# Sla het bestand op met datum in de naam
-output_path = f"output/likes_per_profiel_{vandaag}.csv"
+output_path = os.path.join(output_dir, f"likes_per_profiel_{vandaag}.csv")
 output.to_csv(output_path, index=False)
 
 
